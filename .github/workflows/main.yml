@@ -22,13 +22,33 @@ jobs:
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
 
-      - name: Build
-        run: gradle clean build
+      - name: Extract source ZIP
+        run: |
+          ZIP=$(find . -maxdepth 1 -iname '*.zip' -print -quit)
+          if [ -z "$ZIP" ]; then
+            echo "Không tìm thấy source ZIP"
+            exit 1
+          fi
+          mkdir extracted
+          unzip -q "$ZIP" -d extracted
+
+      - name: Find and build project
+        run: |
+          BUILD_FILE=$(find extracted -type f \( -name build.gradle -o -name build.gradle.kts \) -print -quit)
+          if [ -z "$BUILD_FILE" ]; then
+            echo "ZIP không có build.gradle"
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$BUILD_FILE")
+          gradle -p "$PROJECT_DIR" clean build
 
       - name: Upload JAR
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: PHUT-CITY-1.0
-          path: build/libs/*.jar
+          path: extracted/**/build/libs/*.jar
+
