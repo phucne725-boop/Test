@@ -1,5 +1,5 @@
 
-name: Build PHUT CITY
+name: Build PHUT CITY 1.0
 
 on:
   workflow_dispatch:
@@ -12,81 +12,74 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
+      # 1. Lấy source từ GitHub
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Java 25
+      # 2. Cài Java 25
+      - name: Setup Java 25
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
+          cache: gradle
 
-      - name: Install Gradle
+      # 3. Cài Gradle
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.2.1'
 
-      - name: Extract source ZIP
+      # 4. Tìm và giải nén source.zip
+      - name: Extract source
         run: |
           ZIP=$(find . -maxdepth 1 -type f -iname '*.zip' -print -quit)
+
           if [ -z "$ZIP" ]; then
-            echo "ERROR: Khong tim thay ZIP"
+            echo "Không tìm thấy source.zip"
             exit 1
           fi
+
           mkdir -p extracted
           unzip -q "$ZIP" -d extracted
 
-      - name: Fix Paper API version
+          echo "Đã giải nén mã nguồn"
+
+      # 5. Tìm dự án Gradle
+      - name: Locate Gradle project
         run: |
-          echo "Tim cac khai bao Paper API cu..."
-
-          grep -RIl \
-            --exclude-dir=.git \
-            '26.3-R0.1-SNAPSHOT' extracted \
-            | while IFS= read -r FILE; do
-                echo "Sua: $FILE"
-                sed -i 's/26.3-R0.1-SNAPSHOT/26.3.build.+/g' "$FILE"
-              done
-
-          echo "Kiem tra khai bao cu..."
-          if grep -RIn '26.3-R0.1-SNAPSHOT' extracted; then
-            echo "ERROR: Van con phien ban Paper API cu"
-            exit 1
-          fi
-
-      - name: Find Gradle project
-        run: |
-          BUILD_FILE=$(find extracted -type f \( \
-            -name build.gradle -o \
-            -name build.gradle.kts \
-          \) -print -quit)
+          BUILD_FILE=$(find extracted -type f -name build.gradle -print -quit)
 
           if [ -z "$BUILD_FILE" ]; then
-            echo "ERROR: Khong tim thay build.gradle"
+            echo "Không tìm thấy build.gradle"
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$BUILD_FILE")
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          echo "Project: $PROJECT_DIR"
+          echo "Dự án: $PROJECT_DIR"
 
+      # 6. Biên dịch plugin
       - name: Build PHUT CITY
         run: |
           gradle -p "$PROJECT_DIR" clean build --no-daemon
 
+      # 7. Kiểm tra JAR
       - name: Check JAR
         run: |
           find "$PROJECT_DIR/build/libs" -type f -name '*.jar'
 
           if ! find "$PROJECT_DIR/build/libs" -type f -name '*.jar' | grep -q .; then
-            echo "ERROR: Khong tao duoc JAR"
+            echo "Không tạo được JAR"
             exit 1
           fi
 
-      - name: Upload JAR
+      # 8. Tải JAR
+      - name: Upload PHUT CITY
         uses: actions/upload-artifact@v4
         with:
           name: PHUT-CITY-1.0
           path: ${{ env.PROJECT_DIR }}/build/libs/*.jar
           if-no-files-found: error
+          compression-level: 0
