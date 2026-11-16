@@ -4,7 +4,9 @@ name: Build Phut SMP
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - master
 
 permissions:
   contents: read
@@ -60,10 +62,13 @@ jobs:
           }
           EOF
 
-      - name: Check source files
+      - name: Verify source
         run: |
           test -f src/main/java/vn/phutsmp/PhutSmp.java
           test -f src/main/resources/plugin.yml
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Build Phut SMP
         run: gradle clean build --no-daemon
@@ -74,3 +79,4 @@ jobs:
           name: PhutSmp-JAR
           path: build/libs/*.jar
           if-no-files-found: error
+          retention-days: 14
