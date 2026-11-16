@@ -4,8 +4,7 @@ name: Build EcoChill JAR
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
@@ -15,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Java 25
@@ -23,12 +22,41 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-          cache: gradle
+
+      - name: Create Gradle files
+        run: |
+          echo "rootProject.name = 'EcoChill'" > settings.gradle
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'java'
+          }
+
+          group = 'com.ecochill'
+          version = '1.0.0'
+
+          repositories {
+              mavenCentral()
+              maven {
+                  url = 'https://repo.papermc.io/repository/maven-public/'
+              }
+          }
+
+          dependencies {
+              compileOnly 'io.papermc.paper:paper-api:26.3.build.244-stable'
+          }
+
+          java {
+              toolchain {
+                  languageVersion = JavaLanguageVersion.of(25)
+              }
+          }
+          EOF
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build EcoChill
+      - name: Build plugin
         run: gradle clean build --no-daemon
 
       - name: Upload JAR
@@ -37,4 +65,3 @@ jobs:
           name: EcoChill-JAR
           path: build/libs/*.jar
           if-no-files-found: error
-          retention-days: 14
