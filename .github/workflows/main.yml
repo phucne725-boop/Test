@@ -20,11 +20,40 @@ jobs:
           distribution: temurin
           java-version: '25'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Create Gradle settings
+        run: |
+          echo "rootProject.name = 'EcoChill'" > settings.gradle
+
+      - name: Create Gradle build
+        run: |
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'java'
+          }
+
+          group = 'com.ecochill'
+          version = '1.0.0'
+
+          repositories {
+              mavenCentral()
+              maven {
+                  url = 'https://repo.papermc.io/repository/maven-public/'
+              }
+          }
+
+          dependencies {
+              compileOnly 'io.papermc.paper:paper-api:26.3.build.244-stable'
+          }
+
+          java {
+              toolchain {
+                  languageVersion = JavaLanguageVersion.of(25)
+              }
+          }
+          EOF
 
       - name: Build plugin
-        run: gradle build
+        run: gradle clean build
 
       - name: Upload JAR
         uses: actions/upload-artifact@v4
