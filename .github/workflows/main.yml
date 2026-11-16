@@ -4,9 +4,7 @@ name: Build Phut SMP
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-      - master
+    branches: [main, master]
 
 permissions:
   contents: read
@@ -16,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Source
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Java 25
@@ -25,16 +23,54 @@ jobs:
           distribution: temurin
           java-version: '25'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Create Gradle settings
+        run: |
+          echo "rootProject.name = 'PhutSmp'" > settings.gradle
+
+      - name: Create Gradle build
+        run: |
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'java'
+          }
+
+          group = 'vn.phutsmp'
+          version = '1.0.0'
+
+          repositories {
+              mavenCentral()
+              maven {
+                  url = 'https://repo.papermc.io/repository/maven-public/'
+              }
+          }
+
+          dependencies {
+              compileOnly 'io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT'
+          }
+
+          java {
+              toolchain {
+                  languageVersion = JavaLanguageVersion.of(25)
+              }
+          }
+
+          tasks.withType(JavaCompile).configureEach {
+              options.release = 21
+              options.encoding = 'UTF-8'
+          }
+          EOF
+
+      - name: Check source files
+        run: |
+          test -f src/main/java/vn/phutsmp/PhutSmp.java
+          test -f src/main/resources/plugin.yml
 
       - name: Build Phut SMP
         run: gradle clean build --no-daemon
 
-      - name: Upload PhutSmp JAR
+      - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
           name: PhutSmp-JAR
-          path: build/libs/PhutSmp-*.jar
+          path: build/libs/*.jar
           if-no-files-found: error
-          retention-days: 14
