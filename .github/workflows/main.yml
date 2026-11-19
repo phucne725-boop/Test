@@ -21,8 +21,23 @@ jobs:
           distribution: temurin
           java-version: '25'
 
+      - name: Find Maven project
+        id: project
+        shell: bash
+        run: |
+          POM=$(find . -name pom.xml -not -path '*/.git/*' -print -quit)
+
+          if [ -z "$POM" ]; then
+            echo "::error::Khong tim thay pom.xml. Hay upload ma nguon Java PSSMP vao Repository."
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$POM")
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Found Maven project: $PROJECT_DIR"
+
       - name: Build with Maven
-        run: mvn -B clean package -DskipTests
+        run: mvn -B -f "${{ steps.project.outputs.dir }}/pom.xml" clean package -DskipTests
 
       - name: Upload JAR files
         uses: actions/upload-artifact@v4
