@@ -1,0 +1,79 @@
+
+name: PSSMP Build All
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: API-Part1
+            zip: PSSMP_API_1.0_Part1.zip
+            folder: PSSMP_API_1.0_Part1
+
+          - name: Core-Part2
+            zip: PSSMP_Core_1.0_Part2.zip
+            folder: PSSMP_Core_1.0_Part2
+
+          - name: Core-Part3-Full
+            zip: PSSMP_Core_1.0_Part3_Full.zip
+            folder: PSSMP_Core_1.0_Part3_Full
+
+    name: Build ${{ matrix.name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Check ZIP
+        run: |
+          test -f "${{ matrix.zip }}" || {
+            echo "Missing ZIP: ${{ matrix.zip }}"
+            exit 1
+          }
+
+      - name: Extract source
+        run: |
+          mkdir -p build-source
+          unzip -q "${{ matrix.zip }}" -d build-source
+
+      - name: Find pom.xml
+        id: project
+        shell: bash
+        run: |
+          POM=$(find build-source -name pom.xml -print -quit)
+
+          if [ -z "$POM" ]; then
+            echo "::error::pom.xml not found"
+            exit 1
+          fi
+
+          echo "pom=$POM" >> "$GITHUB_OUTPUT"
+          echo "Found: $POM"
+
+      - name: Build with Maven
+        run: |
+          mvn -B -f "${{ steps.project.outputs.pom }}" clean package -DskipTests
+
+      - name: Upload JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: PSSMP-${{ matrix.name }}
+          path: build-source/**/target/*.jar
+          if-no-files-found: error
+          retention-days: 30
