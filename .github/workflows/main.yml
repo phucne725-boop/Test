@@ -1,5 +1,4 @@
-
-name: PSSMP Build
+name: PSSMP Build All
 
 on:
   workflow_dispatch:
@@ -11,8 +10,26 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: API-Part1
+            zip: PSSMP_API_1.0_Part1.zip
+            folder: PSSMP_API_1.0_Part1
+
+          - name: Core-Part2
+            zip: PSSMP_Core_1.0_Part2.zip
+            folder: PSSMP_Core_1.0_Part2
+
+          - name: Core-Part3-Full
+            zip: PSSMP_Core_1.0_Part3_Full.zip
+            folder: PSSMP_Core_1.0_Part3_Full
+
+    name: Build ${{ matrix.name }}
+
     steps:
-      - name: Get source code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Java 25
@@ -20,102 +37,42 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+          cache: maven
 
-      - name: Check source files
+      - name: Check ZIP
+        run: |
+          test -f "${{ matrix.zip }}" || {
+            echo "Missing ZIP: ${{ matrix.zip }}"
+            exit 1
+          }
+
+      - name: Extract source
+        run: |
+          mkdir -p build-source
+          unzip -q "${{ matrix.zip }}" -d build-source
+
+      - name: Find pom.xml
+        id: project
         shell: bash
         run: |
-          if ! find . -name "*.java" -not -path "*/target/*" | grep -q .; then
-            echo "::error::Repository chưa có mã nguồn Java."
+          POM=$(find build-source -name pom.xml -print -quit)
+
+          if [ -z "$POM" ]; then
+            echo "::error::pom.xml not found"
             exit 1
           fi
 
-      - name: Create temporary Maven configuration
-        shell: bash
+          echo "pom=$POM" >> "$GITHUB_OUTPUT"
+          echo "Found: $POM"
+
+      - name: Build with Maven
         run: |
-          mkdir -p src/main/java src/main/resources
-
-          cat > pom.xml <<'EOF'
-          <project xmlns="http://maven.apache.org/POM/4.0.0"
-                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-            <modelVersion>4.0.0</modelVersion>
-
-            <groupId>vn.pssmp</groupId>
-            <artifactId>pssmp-core</artifactId>
-            <version>1.0</version>
-
-            <properties>
-              <maven.compiler.release>25</maven.compiler.release>
-              <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-            </properties>
-
-            <repositories>
-              <repository>
-                <id>papermc</id>
-                <url>https://repo.papermc.io/repository/maven-public/</url>
-              </repository>
-            </repositories>
-
-            <dependencies>
-              <dependency>
-                <groupId>io.papermc.paper</groupId>
-                <artifactId>paper-api</artifactId>
-                <version>26.1.2-R0.1-SNAPSHOT</version>
-                <scope>provided</scope>
-              </dependency>
-
-              <dependency>
-                <groupId>com.zaxxer</groupId>
-                <artifactId>HikariCP</artifactId>
-                <version>6.3.0</version>
-              </dependency>
-            </dependencies>
-
-            <build>
-              <plugins>
-                <plugin>
-                  <groupId>org.apache.maven.plugins</groupId>
-                  <artifactId>maven-compiler-plugin</artifactId>
-                  <version>3.14.1</version>
-                </plugin>
-
-                <plugin>
-                  <groupId>org.apache.maven.plugins</groupId>
-                  <artifactId>maven-shade-plugin</artifactId>
-                  <version>3.6.0</version>
-                  <executions>
-                    <execution>
-                      <phase>package</phase>
-                      <goals>
-                        <goal>shade</goal>
-                      </goals>
-                    </execution>
-                  </executions>
-                </plugin>
-              </plugins>
-            </build>
-          </project>
-          EOF
-
-      - name: Prepare source and resources
-        shell: bash
-        run: |
-          if [ -d src/main/java ]; then
-            find . -maxdepth 1 -type f -name "*.java" \
-              -exec cp {} src/main/java/ \;
-          fi
-
-          if [ -f plugin.yml ]; then
-            cp plugin.yml src/main/resources/
-          fi
-
-      - name: Build JAR
-        run: mvn -B clean package -DskipTests
+          mvn -B -f "${{ steps.project.outputs.pom }}" clean package -DskipTests
 
       - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
-          name: PSSMP-JAR
-          path: target/*.jar
+          name: PSSMP-${{ matrix.name }}
+          path: build-source/**/target/*.jar
           if-no-files-found: error
           retention-days: 30
